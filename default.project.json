@@ -1,0 +1,13 @@
+{
+  "name": "CacheModule",
+  "tree": {
+    "$className": "DataModel",
+
+    "ReplicatedStorage": {
+      "CacheR": {
+        "$path": "src/CacheR"
+      }
+    }
+
+  }
+}
