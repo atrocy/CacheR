@@ -1,7 +1,5 @@
 --[[
 	by atrocy(aka cheez1i or Romazka57)
-
-	! IF YOU NEED AUTOCOMPLETION, READ LINE 156!!!
 	
 	no doc yet..
 	
