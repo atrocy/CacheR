@@ -7,6 +7,8 @@ export type Cache = {
 	
 	Expiring: RBXScriptSignal,
 	KeyExpiring: RBXScriptSignal,
+
+	_updated: RBXScriptSignal,
 	
 	_items: {},
 	_expiry: {},
@@ -14,6 +16,7 @@ export type Cache = {
 	_status: 'Active' | 'Expired' ,
 	_uniqueId: string,
 	_thread: thread,
+	_global: boolean
 }
 
 export type ExpiryCache = {
