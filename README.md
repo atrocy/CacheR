@@ -11,9 +11,9 @@ local newCache = CacheR.new('CacheCache', false)
 local newCache_value = 'stringy stringy string ima stringy stringy string'
 
 newCache:SetValue('StringData', newCache_value, true, 2)
-print(newCache:GetValue('StringData')) -> "stringy stringy string ima stringy stringy string"
+print(newCache:GetValue('StringData')) --> "stringy stringy string ima stringy stringy string"
 task.wait(2)
-print('Expired value:', newCache:GetValue('StringData', ':(')) -> "Expired value: :("
+print('Expired value:', newCache:GetValue('StringData', ':(')) --> "Expired value: :("
 ```
 
 Further documentation can be found inside the modules code!
