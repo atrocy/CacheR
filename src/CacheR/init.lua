@@ -1,7 +1,75 @@
 --[[
-	by atrocy(aka cheez1i or Romazka57)
-	
-	no doc yet..
+	by atrocy!!!(aka cheez1i or Romazka57)
+
+	# CacheR - Create expirable or non expirable Caches, Values!
+
+	You can read this post about caching :)
+	https://devforum.roblox.com/t/a-basic-guide-to-caching-for-roblox-lua/1138577
+
+	[ Example Usage ]
+	 	local CacheR = require(path.to.module)
+		local newCache = CacheR.new('CacheCache', false)
+
+		local newCache_value = 'stringy stringy string ima stringy stringy string'
+
+		newCache:SetValue('StringData', newCache_value, true, 2)
+		print(newCache:GetValue('StringData')) -> "stringy stringy string ima stringy stringy string"
+		task.wait(2)
+		print('Expired value:', newCache:GetValue('StringData', ':(')) -> "Expired value: :("
+
+	[ CACHER API ]
+	 	# Functions
+			CacheR.new(Name: string, Expirable: boolean?, Expiration: number? Attributes: {}?) -> Cache
+				Description:
+					Creates a new Cache
+				Returns:
+					Cache
+
+					
+			CacheR.GetByUniqueId(uniqueId: string) -> Cache|nil
+				Returns:
+					Cache or nil
+
+			CacheR.GetByName(Name: any) -> Cache|nil
+				Returns:
+					Cache or nil
+
+		# Methods
+			Cache:SetValue(Key: any, Value: any, Expirable: boolean?, Expiration: number?) -> void
+				Description:
+					Sets a new value for the cache, or updates it
+				Note:
+					Expirable's and Expiration's default value is in the settings
+
+			Cache:UnsetValue(Key: any) -> void
+				Description:
+					Unsets the Cache's key
+
+			Cache:GetValue(Key: any, Default: any?, setDefault: boolean?) -> any
+				Description:
+					Gets the Cache's key
+				Returns:
+					any
+				Note:
+					If Default is provided, it'll return the Default value if Key equals nil.
+					If setDefault set to true, it will set the Key's value to the Default value thats provided-
+					IF key's value equals to nil
+
+
+			Cache:UpdateExpiration(Expiration: number) -> void
+				Description:
+					Updates cache's expiration "date"
+
+
+			Cache:SetAttribute(Name: any, Value: any)
+				Description:
+					Sets a new Attribute for the cache, or updates it
+
+			Cache:GetAttribute(Name: any) -> any
+				Description:
+					Returns the attribute in cache
+				Returns:
+					Attribute: {}
 	
 ]]
 
@@ -12,16 +80,10 @@ local instances = {}
 
 --VARIABLES--
 local HttpService = game:GetService('HttpService')
-local RunService = game:GetService('RunService')
-local DataStoreService = game:GetService("DataStoreService")
-local Packages = script.Packages
-
-local RateLimitTime = 6
 
 --MODULES--
 local Types = require(script.Types)
-local Signal = require(Packages.Signal)
-local Compressor = require(Packages.Compress)
+local Signal = require(script.Packages.Signal)
 
 --TYPES--
 type Cache = Types.Cache
@@ -30,58 +92,17 @@ type ExpiryCache = Types.ExpiryCache
 --DEFAULTS--
 cache_module.Settings = {}
 
-cache_module.Settings.DEFAULT_EXPIRATION = 310
+cache_module.Settings.DEFAULT_EXPIRATION = 15
 cache_module.Settings.DEFAULT_EXPIRABLE_BOOLEAN = true
-cache_module.Settings.DEFAULT_GLOBAL_BOOLEAN = false
 cache_module.Settings.DEFAULT_ATTRIBUTES = {}
-
-cache_module.Enum = {
-	Events = {
-		Set = 'Set',
-		Unset = 'Unset',
-	}
-}
-
-local LOG_FORMAT = '[CACHER]: %s'
-local GLOBAL_NAME = 'Cach3%r%Cachd_plsbro314devdevdev'
-local GLOBAL_KEY = 'cupocheerCacheer3%'
-
-local cacheStore
-if RunService:IsServer() then cacheStore = DataStoreService:GetDataStore(GLOBAL_NAME) end
 
 --Private Functions
 local function generateUniqueId()
 	return HttpService:GenerateGUID(false)
 end
 
-local function errorLog(text: string)
-	error(LOG_FORMAT:format(text), 2)
-end
-
-local function Compress(table: {})
-	if typeof(table) == 'table' then return Compressor.Compress(HttpService:JSONEncode(table)) else return Compressor.Compress(table) end
-end
-
-local function Decompress(Compressed: string)
-	local decompressed = HttpService:JSONDecode(Compressor.Decompress(Compressed))
-	if typeof(decompressed) == 'string' then
-		print('Could not decompress data. Retrying...')
-		for i = 1, 5 do
-			decompressed = HttpService:JSONDecode(Compressor.Decompress(Compressed))
-			if typeof(decompressed) ~= 'string' then print('Success!') return decompressed end
-		end
-	end
-	return decompressed
-end
-
 local function Timestamp()
 	return os.time()
-end
-
-local function fpcall(f: 'function', handler: 'function')
-	local success, response: any = pcall(f)
-	if not success then return success, handler(response) end
-	return success, response
 end
 
 local function cacheTableCancelThread(uniqueId: string)
@@ -95,45 +116,10 @@ local function cacheExpiryUpdateAt(cache: Cache, Key: any, Expiration: number)
 	expiry.expireAt = Timestamp()+Expiration
 	
 	cache._expiry[Key] = expiry
-	if not cache._global then return end --skips the update async if not global
-	fpcall(function()
-		return cacheStore:UpdateAsync(GLOBAL_KEY, function(data)
-			if not data then return end
-			local decdata = Decompress(data)
-
-			if not decdata[cache._uniqueId] then return data end
-			if not decdata._expiry then return data end
-
-			decdata._expiry[Key] = expiry
-			data = Compress(decdata)
-			return data
-		end)
-	end, function(err)
-		errorLog(err)
-		return
-	end)
 end
 
 local function cacheExpiryUnset(cache: Cache, Key: any)
 	cache._expiry[Key] = nil
-	if not cache._global then return end --skips the update async if not global
-	fpcall(function()
-		return cacheStore:UpdateAsync(GLOBAL_KEY, function(data)
-			if not data then return end
-			local decdata = Decompress(data)
-
-			if not decdata[cache._uniqueId] then return data end
-			if not decdata._expiry then return data end
-			if not decdata._expiry[Key] then return data end
-
-			decdata._expiry[Key] = nil
-			data = Compress(decdata)
-			return data
-		end)
-	end, function(err)
-		errorLog(err)
-		return
-	end)
 end
 
 local function cacheExpiryCompareExpired(cache: Cache, Key: any)
@@ -152,27 +138,17 @@ local function cacheExpire(cache: Cache)
 	if cache.Expiring then cache.Expiring:Fire() end
 	cache.Status = 'Expired'
 
-	fpcall(function()
-		return cacheStore:UpdateAsync(GLOBAL_KEY, function(data)
-			if not data then return end
-			local decdata = Compress.Decompress(data)
-			if not data[cache._uniqueId] then return data end
-
-			decdata[cache._uniqueId] = nil
-			data = Compress(decdata)
-			return data
-		end)
-	end, function(err)
-		errorLog(err)
-	end)
 	cacheTableCancelThread(cache._uniqueId)
 	
 	for i, v in cache do
-		if typeof(v) == 'thread' then task.cancel(v) end
-		cache[i] = nil
+		if typeof(v) == 'thread' and coroutine.status(v) == 'suspended' then task.cancel(v) end
 	end
+
+	if instances[cache._uniqueId] then instances[cache._uniqueId] = nil end
 	
 	setmetatable(cache, nil)
+	table.clear(cache)
+	table.freeze(cache)
 end
 
 local function cacheValueExpire(cache: Cache, Key: any)
@@ -182,8 +158,6 @@ local function cacheValueExpire(cache: Cache, Key: any)
 	
 	cache._items[Key] = nil
 	cacheExpiryUnset(cache, Key)
-
-	if cache._global then cache._updated:Fire(cache_module.Enum.Events.Set, Key, nil) end
 end
 
 local function delayExpire(cache: Cache): thread
@@ -216,10 +190,9 @@ function cache_module:Expire()
 	cacheExpire(self)
 end
 
-function cache_module.new(Name: string, Expirable: boolean?, Expiration: number?, Attributes: {}?, Global: boolean?)
+function cache_module.new(Name: string, Expirable: boolean?, Expiration: number?, Attributes: {}?)
 	-- Checking if nil, cuz if we do if not Expirable, it will ignore `false` boolean
 	if Expirable == nil then Expirable = cache_module.Settings.DEFAULT_EXPIRABLE_BOOLEAN end
-	if Global == nil then Global = cache_module.Settings.DEFAULT_GLOBAL_BOOLEAN end
 	Expiration = Expiration or cache_module.Settings.DEFAULT_EXPIRATION
 	Attributes = Attributes or cache_module.Settings.DEFAULT_ATTRIBUTES
 	
@@ -230,7 +203,6 @@ function cache_module.new(Name: string, Expirable: boolean?, Expiration: number?
 		
 		--Expiring = Signal.new(), will be added if `Expirable`.
 		KeyExpiring = Signal.new(),
-		_updated = Signal.new(),
 		
 		--_expiration = Expiration, will be added if `Expirable`.
 		_items = {},
@@ -238,88 +210,10 @@ function cache_module.new(Name: string, Expirable: boolean?, Expiration: number?
 		
 		_uniqueId = generateUniqueId(),
 		_status = "Active",
-		_global = Global
 	}
 	if Expirable then self.Expiring = Signal.new() self._expiration = Expiration self._thread = delayExpire(self) end
+	
 	if instances[self._uniqueId] then warn('Cache with that uniqueId is already running.') repeat task.wait() self._uniqueId = generateUniqueId() until not instances[self._uniqueId] end	
-	if Global then --if global then search for the already existing cache, if it does exist ofc.
-		local success, cache_list = fpcall(function()
-			return cacheStore:GetAsync(GLOBAL_KEY)
-		end, function(err)
-			errorLog(err)
-		end)
-		
-		if success and cache_list and cache_list ~= '[]' then
-			print(cache_list)
-			cache_list = Decompress(cache_list)
-
-			for id, cache: Cache in cache_list do
-				if cache.Name ~= self.Name then return end
-				self._uniqueId = cache._uniqueId
-				print('found a global cache with the same name and overwritten your uniqueId!')
-			end
-		end
-	end
-
-	if Global then self._updated:Connect(function(event, key, value, expiration) 
-		if event == cache_module.Enum.Events.Set then
-			fpcall(function()
-				return cacheStore:UpdateAsync(GLOBAL_KEY, function(data)
-					local default = {}
-					default[self._uniqueId] = {}
-					default[self._uniqueId].Name = self.Name
-					default[self._uniqueId].Attributes = self.Attributes
-					default[self._uniqueId]._items = self._items
-					default[self._uniqueId]._expiry = self._expiry
-					default[self._uniqueId]._uniqueId = self._uniqueId
-
-					if not data then return Compress(default) end
-
-					-- data = data or default
-					local decdata = Decompress(data)
-					-- if data == '[]' then decdata = {} else decdata = Decompress(data) end
-					if not decdata[self._uniqueId] then decdata[self._uniqueId] = {Name = self.Name,Attributes = self.Attributes,_items = self._items,_expiry = self._expiry,_uniqueId = self._uniqueId} end
-					if not decdata[self._uniqueId].SessionLock then decdata[self._uniqueId].SessionLock = Timestamp() end
-					if Timestamp() - decdata[self._uniqueId].SessionLock > RateLimitTime then
-						decdata[self._uniqueId]._items[key] = value
-					else
-						warn('Global Cache is Ratelimited!')
-						return
-					end
-
-					local json = HttpService:JSONEncode(decdata)
-					data = Compress(json)
-
-					return data
-				end)
-			end, function(err)
-				errorLog(err)
-			end)
-		elseif event == cache_module.Enum.Events.Unset then
-			fpcall(function()
-				return cacheStore:UpdateAsync(GLOBAL_KEY, function(data)
-					if not data then return end
-					
-					local decdata = Decompress(data)
-					if not decdata[self._uniqueId] then return data end
-					if not decdata[self._uniqueId].SessionLock then decdata[self._uniqueId].SessionLock = Timestamp() end
-					if Timestamp() - data[self._uniqueId].SessionLock > RateLimitTime then
-						decdata[self._uniqueId]._items[key] = nil
-					else
-						warn('Global Cache is Ratelimited!')
-						return
-					end
-
-					local json = HttpService:JSONEncode(decdata)
-					data = Compress(json)
-
-					return data
-				end)
-			end, function(err)
-				errorLog(err)
-			end)
-		end
-	end) end
 	
 	setmetatable(self, cache_module)
 	instances[self._uniqueId] = self
@@ -328,8 +222,7 @@ function cache_module.new(Name: string, Expirable: boolean?, Expiration: number?
 end
 
 --[[ Setting index functions (ruins autocomplete nooo...!!!!)
-	If you need autocomplete you can remove/comment those, if you do, you will only be able to get/set cache values by using
-	functions, if youre ok without autocompletion and left these on, you can set/get cache values through index!
+	If you uncomment those, you will be also allowed to set/get through index
 	Example:
 	
 		Cache.someKey = 'jello!!' 
@@ -339,21 +232,21 @@ end
 --]]
 
 --Returning the cache value if youre doing it through Cache.key!!
--- function cache_module:__index(index)
--- 	if cache_module[index] then return cache_module[index] else return self:GetValue(index) end
--- end
+--function cache_module:__index(index)
+--	if cache_module[index] then return cache_module[index] else return self:GetValue(index) end
+--end
 
 ----Setting the cache value if youre doing it through Cache.key = value!!
--- function cache_module:__newindex(index, value)
--- 	if value == nil then self:UnsetValue(index) else self:SetValue(index, value) end
--- end
+--function cache_module:__newindex(index, value)
+--	if value == nil then self:UnsetValue(index) else self:SetValue(index, value) end
+--end
 --End
 
 function cache_module.GetByUniqueId(uniqueId: string): Cache|nil
 	return instances[uniqueId]
 end
 
-function cache_module.GetByName(Name: string): Cache|nil
+function cache_module.GetByName(Name: any): Cache|nil
 	for _, cache: Cache in instances do
 		if not cache.Name then continue end
 		if cache.Name ~= Name then continue end
@@ -364,17 +257,16 @@ function cache_module.GetByName(Name: string): Cache|nil
 	return nil
 end
 
-function cache_module:SetValue(Key: any, Value: any, Expiration: number?)
+function cache_module:SetValue(Key: any, Value: any, Expirable: boolean?, Expiration: number?)
 	if self._thread then if coroutine.status(self._thread) == 'dead' or coroutine.status(self._thread) == 'running' then return end end
+	-- Checking if nil, cuz if we do if not Expirable, it will ignore `false` boolean
+	if Expirable == nil then Expirable = cache_module.Settings.DEFAULT_EXPIRABLE_BOOLEAN end
 	Expiration = Expiration or cache_module.Settings.DEFAULT_EXPIRATION
 	
 	self._items[Key] = Value
-	
 	cacheExpiryThreadCancel(self, Key)
 	
-	cacheExpiryUpdateAt(self, Key, Expiration)
-	delayValueExpire(self, Key, Expiration)
-	if self._global then self._updated:Fire(cache_module.Enum.Events.Set, Key, Value, Expiration) end
+	if Expirable then cacheExpiryUpdateAt(self, Key, Expiration) delayValueExpire(self, Key, Expiration) end
 end
 
 function cache_module:UnsetValue(Key: any)
@@ -382,32 +274,14 @@ function cache_module:UnsetValue(Key: any)
 	
 	self._items[Key] = nil
 	cacheExpiryUnset(self, Key)
-	if self._global then self._updated:Fire(cache_module.Enum.Events.Unset, Key) end
 end
 
-function cache_module:GetValue(Key: any, Default: any?, setDefault: boolean?, SearchGlobal: boolean?)
-	if setDefault == nil then setDefault =  false end
-	if SearchGlobal == nil then SearchGlobal = false end
+function cache_module:GetValue(Key: any, Default: any?, setDefault: boolean?): any
+	setDefault = setDefault or false
 	
 	if self._items then
-		if self._items[Key] then return self._items[Key] end
-	end
-
-	if SearchGlobal and self._global then
-		local success, cache_list = fpcall(function()
-			return cacheStore:GetAsync(GLOBAL_KEY)
-		end, function(err)
-			errorLog(err)
-		end)
 		
-		if not success then return nil end
-		cache_list = Decompress(cache_list)
-
-		for id, cache: Cache in cache_list do
-			if id ~= self._uniqueId then continue end
-			if not cache._items or not cache._items[Key] then return end
-			return cache._items[Key]
-		end
+		if self._items[Key] then return self._items[Key] end
 	end
 	
 	--Doing ~= nil cuz if i do if NOT Default, it can ignore `false` boolean.
@@ -426,7 +300,6 @@ function cache_module:UpdateExpiration(Expiration: number) --If Expirable, for c
 	self._thread = newThread
 	cacheTableCancelThread()
 	cacheTableUpdate(self._uniqueId, '_thread', newThread)
-	--we dont update the thread for global thing cuz we cant have threads in datastores lol
 end
 
 function cache_module:SetAttribute(Name: any, Value: any)
@@ -434,22 +307,6 @@ function cache_module:SetAttribute(Name: any, Value: any)
 	
 	self.Attributes[Name] = Value
 	cacheTableUpdateAttributes(self._uniqueId, Name, Value)
-	if not self._global then return end --skips the update async if not global
-	fpcall(function()
-		return cacheStore:UpdateAsync(GLOBAL_KEY, function(data)
-			local decdata = Decompress(data)
-
-			if not decdata[self._uniqueId] then return data end
-			if not decdata.Attributes then return data end
-
-			decdata.Attributes[Name] = Value
-			data = Compress(decdata)
-			return data
-		end)
-	end, function(err)
-		errorLog(err)
-		return
-	end)
 end
 
 function cache_module:GetAttribute(Name: any)

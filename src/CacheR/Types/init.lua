@@ -16,7 +16,6 @@ export type Cache = {
 	_status: 'Active' | 'Expired' ,
 	_uniqueId: string,
 	_thread: thread,
-	_global: boolean
 }
 
 export type ExpiryCache = {
