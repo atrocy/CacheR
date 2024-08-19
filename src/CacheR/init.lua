@@ -70,6 +70,18 @@
 					Returns the attribute in cache
 				Returns:
 					Attribute: {}
+
+
+		# Events
+			Cache.Expiring:Connect() -> void
+				Description:
+					Triggers when the cache expires
+
+			Cache.KeyExpiring:Connect(Key: any, Value: any) -> (Key, Value)
+				Description:
+					Triggers when some key expires.
+				Returns:
+					Key's Key, Key's Value
 	
 ]]
 

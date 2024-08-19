@@ -2,13 +2,11 @@ local module = {}
 
 export type Cache = {
 	Name: string,
-	--Value: any,
+
 	Attributes: {Attribute: string|number},
 	
 	Expiring: RBXScriptSignal,
 	KeyExpiring: RBXScriptSignal,
-
-	_updated: RBXScriptSignal,
 	
 	_items: {},
 	_expiry: {},
